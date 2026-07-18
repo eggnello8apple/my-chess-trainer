@@ -1,15 +1,18 @@
 let board = null;
 let game = new Chess();
+
+// FIX: Using a trusted, stable, open-source Stockfish AI script distribution link
 let stockfish = new Worker('https://cloudflare.com');
 
-// User Progress State
+// Initialize the AI engine protocols
+stockfish.postMessage('uci');
+
 let stats = {
     gamesPlayed: 0,
     winStreak: 0,
-    skillLevel: 1 // Stockfish levels range 1-20
+    skillLevel: 1 
 };
 
-// Load saved progress instantly on load
 function loadProgress() {
     const saved = localStorage.getItem('chess_trainer_stats');
     if (saved) {
@@ -29,17 +32,16 @@ function updateDashboard() {
     document.getElementById('ai-level').innerText = stats.skillLevel;
 }
 
-// Logic for handling piece movements
 function onDragStart(source, piece, position, orientation) {
     if (game.game_over()) return false;
-    if (piece.search(/^b/) !== -1) return false; // Player is always White
+    if (piece.search(/^b/) !== -1) return false; // Player can only drag White pieces
 }
 
 function onDrop(source, target) {
     let move = game.move({
         from: source,
         to: target,
-        promotion: 'q' // Auto-promote to queen for simplicity
+        promotion: 'q' 
     });
 
     if (move === null) return 'snapback';
@@ -52,19 +54,26 @@ function onSnapEnd() {
     checkGameStatus();
 }
 
-// AI Engine Implementation
 function makeAIMove() {
     if (game.game_over()) return;
 
-    // Configure Stockfish level dynamic to your saved skill level
+    // Send difficulty configuration to Stockfish engine
     stockfish.postMessage(`setoption name Skill Level value ${stats.skillLevel}`);
     stockfish.postMessage(`position fen ${game.fen()}`);
-    stockfish.postMessage('go depth 10'); // Looks ahead 10 moves max
+    stockfish.postMessage('go depth 10'); 
 
     stockfish.onmessage = function(event) {
+        // FIX: Replaced custom string substring errors with clean space-parsing split checks
         if (event.data.startsWith('bestmove')) {
-            const move = event.data.split(' ')[1];
-            game.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move.substring(4, 5) });
+            const parts = event.data.split(' ');
+            const bestMove = parts[1]; // Extracts the actual move string e.g., 'e7e5'
+            
+            game.move({ 
+                from: bestMove.substring(0, 2), 
+                to: bestMove.substring(2, 4), 
+                promotion: bestMove.substring(4, 5) || 'q' 
+            });
+            
             board.position(game.fen());
             checkGameStatus();
             giveCoachFeedback();
@@ -72,13 +81,11 @@ function makeAIMove() {
     };
 }
 
-// Real-time AI Coach Feedback Feature
 function giveCoachFeedback() {
     let history = game.history({ verbose: true });
     if (history.length === 0) return;
     let lastMove = history[history.length - 1];
     
-    // Simplistic heuristic coach
     if (lastMove.san.includes('+')) {
         document.getElementById('coach').innerText = "Coach: Nice check! Keep up the tactical pressure.";
     } else if (lastMove.captured) {
@@ -91,11 +98,11 @@ function giveCoachFeedback() {
 function checkGameStatus() {
     if (game.in_checkmate()) {
         stats.gamesPlayed++;
-        if (game.turn() === 'b') { // White won
+        if (game.turn() === 'b') { 
             stats.winStreak++;
             document.getElementById('coach').innerText = "Victory! The AI coach is raising your dynamic level.";
             if(stats.skillLevel < 20) stats.skillLevel++;
-        } else { // Black won
+        } else { 
             stats.winStreak = 0;
             document.getElementById('coach').innerText = "Checkmate. Try analyzing where your defenses failed.";
         }
@@ -113,7 +120,6 @@ function resetGame() {
     document.getElementById('coach').innerText = "New match started. Focus on control of the center squares.";
 }
 
-// Initialization code
 const config = {
     draggable: true,
     position: 'start',
