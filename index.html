@@ -4,16 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chess Trainer</title>
-    <!-- Combined Stable Open Source Dependencies -->
+    <!-- CSS for Layout and Styling -->
     <link rel="stylesheet" href="https://cloudflare.com">
+    
+    <!-- JavaScript Dependencies -->
     <script src="https://jquery.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
     <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
+    
     <style>
         body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background: #312e2b; color: #fff; padding: 20px; }
         #board { width: 400px; max-width: 100%; margin: 20px auto; }
         .dashboard { background: #262421; padding: 15px; border-radius: 8px; width: 400px; max-width: 100%; text-align: center; box-sizing: border-box; }
-        button { background: #81b64c; color: white; border: none; padding: 12px 24px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; width: 100%; }
+        button { background: #81b64c; color: white; border: none; padding: 12px 24px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; width: 100%; user-select: none; }
         button:hover { background: #a3d16c; }
         .coach-feedback { font-style: italic; color: #ffd700; margin-top: 10px; min-height: 20px; }
     </style>
@@ -30,19 +33,31 @@
     </div>
 
     <script>
-        // --- ALL CHESS LOGIC INTEGRATED HERE ---
         let board = null;
-        let game = new Chess();
+        let game = null;
         let stockfish = null;
 
-        // Security bypass for Stockfish Worker execution
+        // FIX: Safe, polymorphic validation fallback initialization targeting chess.js engine classes
+        try {
+            if (typeof Chess === 'function') {
+                game = new Chess();
+            } else if (window.Chess && typeof window.Chess.Chess === 'function') {
+                game = new window.Chess.Chess();
+            } else {
+                game = new window.Chess();
+            }
+        } catch (err) {
+            console.error("Chess logic constructor initialization failed:", err);
+        }
+
+        // Bypassing Worker CORS security contexts natively
         try {
             const workerCode = "importScripts('https://cloudflare.com');";
             const blob = new Blob([workerCode], { type: "application/javascript" });
             stockfish = new Worker(URL.createObjectURL(blob));
             stockfish.postMessage('uci');
         } catch (e) {
-            console.error("Stockfish worker init error:", e);
+            console.error("Stockfish worker context loading blocked:", e);
         }
 
         let stats = { gamesPlayed: 0, winStreak: 0, skillLevel: 1 };
@@ -65,23 +80,26 @@
         }
 
         function onDragStart(source, piece, position, orientation) {
-            if (game.game_over()) return false;
+            if (!game || game.game_over()) return false;
             if (piece.search(/^b/) !== -1) return false; 
         }
 
         function onDrop(source, target) {
+            if (!game) return 'snapback';
             let move = game.move({ from: source, to: target, promotion: 'q' });
             if (move === null) return 'snapback';
             window.setTimeout(makeAIMove, 250);
         }
 
         function onSnapEnd() {
-            board.position(game.fen());
-            checkGameStatus();
+            if (board && game) {
+                board.position(game.fen());
+                checkGameStatus();
+            }
         }
 
         function makeAIMove() {
-            if (game.game_over() || !stockfish) return;
+            if (!game || game.game_over() || !stockfish) return;
 
             stockfish.postMessage(`setoption name Skill Level value ${stats.skillLevel}`);
             stockfish.postMessage(`position fen ${game.fen()}`);
@@ -92,13 +110,13 @@
                     const parts = event.data.split(' ');
                     const bestMove = parts[1]; 
                     
-                    if (bestMove && bestMove !== '(none)') {
+                    if (bestMove && bestMove !== '(none)' && game) {
                         game.move({ 
                             from: bestMove.substring(0, 2), 
                             to: bestMove.substring(2, 4), 
                             promotion: bestMove.substring(4, 5) || 'q' 
                         });
-                        board.position(game.fen());
+                        if (board) board.position(game.fen());
                         checkGameStatus();
                         giveCoachFeedback();
                     }
@@ -107,6 +125,7 @@
         }
 
         function giveCoachFeedback() {
+            if (!game) return;
             let history = game.history({ verbose: true });
             if (history.length === 0) return;
             let lastMove = history[history.length - 1];
@@ -120,6 +139,7 @@
         }
 
         function checkGameStatus() {
+            if (!game) return;
             if (game.in_checkmate()) {
                 stats.gamesPlayed++;
                 if (game.turn() === 'b') { 
@@ -139,8 +159,8 @@
         }
 
         function resetGame() {
-            game.reset();
-            if (board) { board.start(); }
+            if (game) game.reset();
+            if (board) board.start();
             document.getElementById('coach').innerText = "New match started. Control center squares.";
         }
 
@@ -150,7 +170,7 @@
             onDragStart: onDragStart,
             onDrop: onDrop,
             onSnapEnd: onSnapEnd,
-            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+            pieceTheme: 'https://chessboardjs.com{piece}.png'
         };
 
         $(document).ready(function() {
@@ -161,5 +181,3 @@
     </script>
 </body>
 </html>
-
-Trigger build rebuild force
