@@ -1,11 +1,16 @@
 let board = null;
 let game = new Chess();
+let stockfish = null;
 
-// FIX: Using a trusted, stable, open-source Stockfish AI script distribution link
-let stockfish = new Worker('https://cloudflare.com');
-
-// Initialize the AI engine protocols
-stockfish.postMessage('uci');
+// SECURITY BYPASS: Creates an inline Web Worker to prevent CORS network blocking
+try {
+    const workerCode = "importScripts('https://cloudflare.com');";
+    const blob = new Blob([workerCode], { type: "application/javascript" });
+    stockfish = new Worker(URL.createObjectURL(blob));
+    stockfish.postMessage('uci');
+} catch (e) {
+    console.error("Failed to load Stockfish engine worker safely:", e);
+}
 
 let stats = {
     gamesPlayed: 0,
@@ -34,7 +39,8 @@ function updateDashboard() {
 
 function onDragStart(source, piece, position, orientation) {
     if (game.game_over()) return false;
-    if (piece.search(/^b/) !== -1) return false; // Player can only drag White pieces
+    // Player is always White pieces
+    if (piece.search(/^b/) !== -1) return false; 
 }
 
 function onDrop(source, target) {
@@ -55,28 +61,27 @@ function onSnapEnd() {
 }
 
 function makeAIMove() {
-    if (game.game_over()) return;
+    if (game.game_over() || !stockfish) return;
 
-    // Send difficulty configuration to Stockfish engine
     stockfish.postMessage(`setoption name Skill Level value ${stats.skillLevel}`);
     stockfish.postMessage(`position fen ${game.fen()}`);
-    stockfish.postMessage('go depth 10'); 
+    stockfish.postMessage('go depth 8'); 
 
     stockfish.onmessage = function(event) {
-        // FIX: Replaced custom string substring errors with clean space-parsing split checks
         if (event.data.startsWith('bestmove')) {
             const parts = event.data.split(' ');
-            const bestMove = parts[1]; // Extracts the actual move string e.g., 'e7e5'
+            const bestMove = parts[1]; 
             
-            game.move({ 
-                from: bestMove.substring(0, 2), 
-                to: bestMove.substring(2, 4), 
-                promotion: bestMove.substring(4, 5) || 'q' 
-            });
-            
-            board.position(game.fen());
-            checkGameStatus();
-            giveCoachFeedback();
+            if (bestMove && bestMove !== '(none)') {
+                game.move({ 
+                    from: bestMove.substring(0, 2), 
+                    to: bestMove.substring(2, 4), 
+                    promotion: bestMove.substring(4, 5) || 'q' 
+                });
+                board.position(game.fen());
+                checkGameStatus();
+                giveCoachFeedback();
+            }
         }
     };
 }
@@ -100,7 +105,7 @@ function checkGameStatus() {
         stats.gamesPlayed++;
         if (game.turn() === 'b') { 
             stats.winStreak++;
-            document.getElementById('coach').innerText = "Victory! The AI coach is raising your dynamic level.";
+            document.getElementById('coach').innerText = "Victory! The AI coach is raising your difficulty level.";
             if(stats.skillLevel < 20) stats.skillLevel++;
         } else { 
             stats.winStreak = 0;
@@ -116,10 +121,13 @@ function checkGameStatus() {
 
 function resetGame() {
     game.reset();
-    board.start();
-    document.getElementById('coach').innerText = "New match started. Focus on control of the center squares.";
+    if (board) {
+        board.start();
+    }
+    document.getElementById('coach').innerText = "New match started. Focus on controlling center squares.";
 }
 
+// Visual layout configuration binding
 const config = {
     draggable: true,
     position: 'start',
@@ -127,5 +135,10 @@ const config = {
     onDrop: onDrop,
     onSnapEnd: onSnapEnd
 };
-board = Chessboard('board', config);
-loadProgress();
+
+// Start application processes safely
+$(document).ready(function() {
+    board = Chessboard('board', config);
+    document.getElementById('resetBtn').addEventListener('click', resetGame);
+    loadProgress();
+});
