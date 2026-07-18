@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chess Trainer</title>
-    <!-- Stable Open Source CSS/JS Dependencies -->
+    <!-- Combined Stable Open Source Dependencies -->
     <link rel="stylesheet" href="https://cloudflare.com">
     <script src="https://jquery.com"></script>
-    <script src="https://cloudflare.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background: #312e2b; color: #fff; padding: 20px; }
@@ -28,6 +28,138 @@
         <div class="coach-feedback" id="coach">Drag a white piece to start training!</div>
         <button id="resetBtn">Start New Game</button>
     </div>
-    <script src="app.js"></script>
+
+    <script>
+        // --- ALL CHESS LOGIC INTEGRATED HERE ---
+        let board = null;
+        let game = new Chess();
+        let stockfish = null;
+
+        // Security bypass for Stockfish Worker execution
+        try {
+            const workerCode = "importScripts('https://cloudflare.com');";
+            const blob = new Blob([workerCode], { type: "application/javascript" });
+            stockfish = new Worker(URL.createObjectURL(blob));
+            stockfish.postMessage('uci');
+        } catch (e) {
+            console.error("Stockfish worker init error:", e);
+        }
+
+        let stats = { gamesPlayed: 0, winStreak: 0, skillLevel: 1 };
+
+        function loadProgress() {
+            const saved = localStorage.getItem('chess_trainer_stats');
+            if (saved) { stats = JSON.parse(saved); }
+            updateDashboard();
+        }
+
+        function saveProgress() {
+            localStorage.setItem('chess_trainer_stats', JSON.stringify(stats));
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            document.getElementById('games-count').innerText = stats.gamesPlayed;
+            document.getElementById('streak-count').innerText = stats.winStreak;
+            document.getElementById('ai-level').innerText = stats.skillLevel;
+        }
+
+        function onDragStart(source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if (piece.search(/^b/) !== -1) return false; 
+        }
+
+        function onDrop(source, target) {
+            let move = game.move({ from: source, to: target, promotion: 'q' });
+            if (move === null) return 'snapback';
+            window.setTimeout(makeAIMove, 250);
+        }
+
+        function onSnapEnd() {
+            board.position(game.fen());
+            checkGameStatus();
+        }
+
+        function makeAIMove() {
+            if (game.game_over() || !stockfish) return;
+
+            stockfish.postMessage(`setoption name Skill Level value ${stats.skillLevel}`);
+            stockfish.postMessage(`position fen ${game.fen()}`);
+            stockfish.postMessage('go depth 8'); 
+
+            stockfish.onmessage = function(event) {
+                if (event.data.startsWith('bestmove')) {
+                    const parts = event.data.split(' ');
+                    const bestMove = parts[1]; 
+                    
+                    if (bestMove && bestMove !== '(none)') {
+                        game.move({ 
+                            from: bestMove.substring(0, 2), 
+                            to: bestMove.substring(2, 4), 
+                            promotion: bestMove.substring(4, 5) || 'q' 
+                        });
+                        board.position(game.fen());
+                        checkGameStatus();
+                        giveCoachFeedback();
+                    }
+                }
+            };
+        }
+
+        function giveCoachFeedback() {
+            let history = game.history({ verbose: true });
+            if (history.length === 0) return;
+            let lastMove = history[history.length - 1];
+            if (lastMove.san.includes('+')) {
+                document.getElementById('coach').innerText = "Coach: Nice check! Keep up tactical pressure.";
+            } else if (lastMove.captured) {
+                document.getElementById('coach').innerText = "Coach: Clean capture.";
+            } else {
+                document.getElementById('coach').innerText = "Coach: Solid development.";
+            }
+        }
+
+        function checkGameStatus() {
+            if (game.in_checkmate()) {
+                stats.gamesPlayed++;
+                if (game.turn() === 'b') { 
+                    stats.winStreak++;
+                    document.getElementById('coach').innerText = "Victory! Advancing difficulty.";
+                    if(stats.skillLevel < 20) stats.skillLevel++;
+                } else { 
+                    stats.winStreak = 0;
+                    document.getElementById('coach').innerText = "Checkmate. Analyze your defenses.";
+                }
+                saveProgress();
+            } else if (game.in_draw()) {
+                stats.gamesPlayed++;
+                document.getElementById('coach').innerText = "Game drawn.";
+                saveProgress();
+            }
+        }
+
+        function resetGame() {
+            game.reset();
+            if (board) { board.start(); }
+            document.getElementById('coach').innerText = "New match started. Control center squares.";
+        }
+
+        const config = {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd,
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+        };
+
+        $(document).ready(function() {
+            board = Chessboard('board', config);
+            document.getElementById('resetBtn').addEventListener('click', resetGame);
+            loadProgress();
+        });
+    </script>
 </body>
 </html>
+
+Trigger build rebuild force
