@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Personal Chess Trainer</title>
+    <!-- Include Open Source Chessboard CSS/JS -->
+    <link rel="stylesheet" href="https://cloudflare.com">
+    <script src="https://jquery.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <!-- Include Chess Rules Logic Engine -->
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background: #312e2b; color: #fff; }
+        #board { width: 400px; margin: 20px auto; }
+        .dashboard { background: #262421; padding: 15px; border-radius: 8px; width: 400px; text-align: center; }
+        button { background: #81b64c; color: white; border: none; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #a3d16c; }
+        .coach-feedback { font-style: italic; color: #ffd700; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>AI Chess Coach</h1>
+    <div id="board"></div>
+    <div class="dashboard">
+        <h3>Your Training Stats</h3>
+        <p>Games Played: <span id="games-count">0</span> | Win Streak: <span id="streak-count">0</span></p>
+        <p>AI Level: <span id="ai-level">1</span> (Based on your skill)</p>
+        <div class="coach-feedback" id="coach">Make a move to start training!</div>
+        <br>
+        <button onclick="resetGame()">New Game</button>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
