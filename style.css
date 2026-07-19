@@ -32,8 +32,9 @@ h1 {
 #game-screen {
   margin-top: 30px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  gap: 30px;
+  align-items: flex-start;
 }
 
 #board {
@@ -64,4 +65,27 @@ h1 {
 
 .drag-over {
   outline: 3px solid #2196f3;
+}
+
+.highlight {
+  box-shadow: inset 0 0 0 3px #ffeb3b;
+}
+
+#trainer-panel {
+  width: 260px;
+  padding: 15px;
+  background: #111;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+#trainer-panel h2 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+#feedback {
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-line;
 }
