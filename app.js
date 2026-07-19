@@ -5,13 +5,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const boardEl = document.getElementById("board");
 
   let board = [];
-  let selectedSquare = null; // { row, col }
+  let stockfish;
 
   startBtn.addEventListener("click", () => {
     startScreen.style.display = "none";
     gameScreen.style.display = "flex";
+
     initBoardArray();
     renderBoard();
+    initStockfish();
   });
 
   function initBoardArray() {
@@ -34,50 +36,60 @@ document.addEventListener("DOMContentLoaded", () => {
       for (let col = 0; col < 8; col++) {
         const square = document.createElement("div");
         square.classList.add("square");
-        if ((row + col) % 2 === 0) {
-          square.classList.add("light");
-        } else {
-          square.classList.add("dark");
-        }
+        square.classList.add((row + col) % 2 === 0 ? "light" : "dark");
 
         square.dataset.row = row;
         square.dataset.col = col;
 
         const piece = board[row][col];
         if (piece) {
-          square.textContent = pieceToUnicode(piece);
+          const pieceEl = document.createElement("div");
+          pieceEl.textContent = pieceToUnicode(piece);
+          pieceEl.draggable = true;
+          pieceEl.dataset.row = row;
+          pieceEl.dataset.col = col;
+
+          pieceEl.addEventListener("dragstart", onDragStart);
+
+          square.appendChild(pieceEl);
         }
 
-        square.addEventListener("click", onSquareClick);
+        square.addEventListener("dragover", onDragOver);
+        square.addEventListener("drop", onDrop);
 
         boardEl.appendChild(square);
       }
     }
   }
 
-  function onSquareClick(e) {
-    const squareEl = e.currentTarget;
-    const row = parseInt(squareEl.dataset.row, 10);
-    const col = parseInt(squareEl.dataset.col, 10);
-    const piece = board[row][col];
+  function onDragStart(e) {
+    e.dataTransfer.setData("fromRow", e.target.dataset.row);
+    e.dataTransfer.setData("fromCol", e.target.dataset.col);
+  }
 
-    // If nothing selected yet
-    if (!selectedSquare) {
-      if (!piece) return; // can't select empty square
+  function onDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add("drag-over");
+  }
 
-      selectedSquare = { row, col };
-      squareEl.classList.add("selected");
-    } else {
-      const fromRow = selectedSquare.row;
-      const fromCol = selectedSquare.col;
+  function onDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove("drag-over");
 
-      // Simple move: move piece from selectedSquare to this square
-      board[row][col] = board[fromRow][fromCol];
-      board[fromRow][fromCol] = "";
+    const fromRow = parseInt(e.dataTransfer.getData("fromRow"));
+    const fromCol = parseInt(e.dataTransfer.getData("fromCol"));
 
-      selectedSquare = null;
-      renderBoard();
-    }
+    const toRow = parseInt(e.currentTarget.dataset.row);
+    const toCol = parseInt(e.currentTarget.dataset.col);
+
+    // Move piece
+    board[toRow][toCol] = board[fromRow][fromCol];
+    board[fromRow][fromCol] = "";
+
+    renderBoard();
+
+    // After your move → AI moves
+    sendPositionToStockfish();
   }
 
   function pieceToUnicode(piece) {
@@ -96,5 +108,66 @@ document.addEventListener("DOMContentLoaded", () => {
       case "p": return "♟";
       default: return "";
     }
+  }
+
+  /* ---------------- STOCKFISH ENGINE ---------------- */
+
+  function initStockfish() {
+    stockfish = STOCKFISH();
+
+    stockfish.onmessage = (line) => {
+      if (line.includes("bestmove")) {
+        const move = line.split("bestmove ")[1].split(" ")[0];
+        applyAIMove(move);
+      }
+    };
+
+    stockfish.postMessage("uci");
+  }
+
+  function sendPositionToStockfish() {
+    const fen = boardToFEN();
+    stockfish.postMessage("position fen " + fen);
+    stockfish.postMessage("go depth 10");
+  }
+
+  function applyAIMove(move) {
+    const fromCol = move.charCodeAt(0) - 97;
+    const fromRow = 8 - parseInt(move[1]);
+    const toCol = move.charCodeAt(2) - 97;
+    const toRow = 8 - parseInt(move[3]);
+
+    board[toRow][toCol] = board[fromRow][fromCol];
+    board[fromRow][fromCol] = "";
+
+    renderBoard();
+  }
+
+  function boardToFEN() {
+    let fen = "";
+
+    for (let row = 0; row < 8; row++) {
+      let empty = 0;
+
+      for (let col = 0; col < 8; col++) {
+        const piece = board[row][col];
+
+        if (piece === "") {
+          empty++;
+        } else {
+          if (empty > 0) {
+            fen += empty;
+            empty = 0;
+          }
+          fen += piece;
+        }
+      }
+
+      if (empty > 0) fen += empty;
+      if (row < 7) fen += "/";
+    }
+
+    fen += " w - - 0 1"; // simple FEN footer
+    return fen;
   }
 });
