@@ -4,10 +4,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const gameScreen = document.getElementById("game-screen");
   const boardEl = document.getElementById("board");
 
-  // Simple board representation: 8x8 array
-  // Uppercase = White, lowercase = Black
-  // r = rook, n = knight, b = bishop, q = queen, k = king, p = pawn
   let board = [];
+  let selectedSquare = null; // { row, col }
 
   startBtn.addEventListener("click", () => {
     startScreen.style.display = "none";
@@ -50,8 +48,35 @@ document.addEventListener("DOMContentLoaded", () => {
           square.textContent = pieceToUnicode(piece);
         }
 
+        square.addEventListener("click", onSquareClick);
+
         boardEl.appendChild(square);
       }
+    }
+  }
+
+  function onSquareClick(e) {
+    const squareEl = e.currentTarget;
+    const row = parseInt(squareEl.dataset.row, 10);
+    const col = parseInt(squareEl.dataset.col, 10);
+    const piece = board[row][col];
+
+    // If nothing selected yet
+    if (!selectedSquare) {
+      if (!piece) return; // can't select empty square
+
+      selectedSquare = { row, col };
+      squareEl.classList.add("selected");
+    } else {
+      const fromRow = selectedSquare.row;
+      const fromCol = selectedSquare.col;
+
+      // Simple move: move piece from selectedSquare to this square
+      board[row][col] = board[fromRow][fromCol];
+      board[fromRow][fromCol] = "";
+
+      selectedSquare = null;
+      renderBoard();
     }
   }
 
