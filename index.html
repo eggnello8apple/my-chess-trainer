@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<script src="https://cdn.jsdelivr.net/npm/stockfish@16.1.0/dist/stockfish.js"></script>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -10,20 +9,22 @@
 <body>
   <h1>My Chess Trainer</h1>
 
-  <!-- Start Screen -->
   <div id="start-screen">
     <button id="start-btn">Start Game</button>
   </div>
 
-  <!-- Game Screen -->
   <div id="game-screen" style="display:none;">
     <div id="board"></div>
+    <div id="trainer-panel">
+      <h2>Trainer Feedback</h2>
+      <div id="feedback"></div>
+    </div>
   </div>
 
-  <!-- Stockfish Engine -->
-  <script src="stockfish.js"></script>
+  <!-- Stockfish WASM via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/stockfish@16.1.0/dist/stockfish.js"></script>
 
-  <!-- Main App -->
+  <!-- Main app -->
   <script src="app.js"></script>
 </body>
 </html>
